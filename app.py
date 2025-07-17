@@ -4,22 +4,22 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
+import json
 
-# Importing data loader
+# Import our data loader
 from components.data_loader import DataLoader
 
-# Page configuration - This must be the first Streamlit command
+# Page configuration
 st.set_page_config(
-    page_title="Financial Markets Intelligence",
+    page_title="MarketMind AI",
     page_icon="📈",
-    layout="wide",  # Use full width of the browser
-    initial_sidebar_state="expanded"  # Sidebar starts expanded
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS for styling
+# Custom CSS (same as before)
 st.markdown("""
 <style>
-    /* Main header styling */
     .main-header {
         font-size: 3rem;
         color: #1f77b4;
@@ -28,7 +28,6 @@ st.markdown("""
         text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
     }
 
-    /* Metric container styling */
     .metric-container {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -38,7 +37,6 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
 
-    /* Button styling */
     .stButton > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -54,12 +52,6 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
 
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    }
-
-    /* Info box styling */
     .info-box {
         background-color: #e8f4f8;
         border-left: 4px solid #1f77b4;
@@ -71,17 +63,22 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# Initialize data loader as singleton
+@st.cache_resource
+def initialize_data_loader():
+    """Initialize and cache the data loader instance"""
+    return DataLoader()
+
+
 def main():
     """Main application function"""
 
-    # Main header
     st.markdown('<h1 class="main-header">📈 MarketMind AI</h1>', unsafe_allow_html=True)
 
     # Sidebar navigation
     st.sidebar.title("🚀 Navigation")
     st.sidebar.markdown("---")
 
-    # Page selection
     page = st.sidebar.selectbox(
         "Choose a page",
         [
@@ -94,12 +91,14 @@ def main():
         ]
     )
 
-    # Add some info in the sidebar
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📊 Quick Stats")
-    st.sidebar.info("Dashboard loaded successfully!")
+    # Add cache status info
+    st.sidebar.markdown("### 💾 Cache Status")
+    if st.sidebar.button("Clear Cache"):
+        st.cache_data.clear()
+        st.sidebar.success("Cache cleared!")
+        st.rerun()
 
-    # Route to appropriate page based on selection
+    # Route to appropriate page - data_loader is accessed within each function
     if page == "🌍 Market Overview":
         show_market_overview()
     elif page == "📊 Technical Analysis":
@@ -119,270 +118,314 @@ def main():
 
 
 def show_market_overview():
-    """Market Overview page"""
+    """Enhanced Market Overview with real data"""
     st.header("🌍 Market Overview")
 
-    # Welcome message
-    st.markdown(
-        '<div class="info-box">Welcome to the Market Overview! This page will display real-time market data, major indices, and individual stock analysis.</div>',
-        unsafe_allow_html=True)
+    # Get data loader instance
+    data_loader = initialize_data_loader()
 
-    # Placeholder metrics using columns
+    # Market indices section
     st.subheader("📈 Major Market Indices")
 
-    col1, col2, col3, col4 = st.columns(4)
+    with st.spinner("Loading market indices..."):
+        indices = data_loader.get_market_indices()
 
-    with col1:
-        st.metric(
-            label="S&P 500",
-            value="4,200.50",
-            delta="12.30 (0.29%)",
-            delta_color="normal"
+    if indices:
+        # Create columns for indices
+        cols = st.columns(len(indices))
+
+        for i, (name, data) in enumerate(indices.items()):
+            with cols[i]:
+                delta_color = "normal" if data['change'] >= 0 else "inverse"
+
+                st.metric(
+                    label=name,
+                    value=f"{data['current']:.2f}",
+                    delta=f"{data['change']:.2f} ({data['change_pct']:.2f}%)",
+                    delta_color=delta_color
+                )
+
+        # Market performance chart
+        st.subheader("📊 Market Performance (5-Day)")
+
+        # Create multi-line chart with all indices
+        fig = go.Figure()
+
+        for name, data in indices.items():
+            if 'data' in data and data['data'] is not None:
+                fig.add_trace(go.Scatter(
+                    x=data['data'].index,
+                    y=data['data']['Close'],
+                    mode='lines',
+                    name=name,
+                    line=dict(width=2),
+                    hovertemplate=f"<b>{name}</b><br>" +
+                                  "Date: %{x}<br>" +
+                                  "Value: %{y:.2f}<extra></extra>"
+                ))
+
+        fig.update_layout(
+            title="Market Indices Performance",
+            xaxis_title="Date",
+            yaxis_title="Index Value",
+            hovermode='x unified',
+            showlegend=True,
+            height=500
         )
 
-    with col2:
-        st.metric(
-            label="NASDAQ",
-            value="14,500.25",
-            delta="-25.10 (-0.17%)",
-            delta_color="inverse"
-        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    with col3:
-        st.metric(
-            label="DOW JONES",
-            value="33,800.75",
-            delta="5.50 (0.02%)",
-            delta_color="normal"
-        )
+    else:
+        st.error("Could not load market indices data. Please check your internet connection.")
 
-    with col4:
-        st.metric(
-            label="VIX",
-            value="18.45",
-            delta="-0.85 (-4.4%)",
-            delta_color="normal"
-        )
+    # Individual stock analysis
+    st.subheader("🔍 Individual Stock Analysis")
 
-    # Sample chart
-    st.subheader("📊 Market Performance")
-
-    # Create sample data for demonstration
-    dates = pd.date_range(start='2024-01-01', end='2024-01-31', freq='D')
-    sample_data = pd.DataFrame({
-        'Date': dates,
-        'S&P 500': np.random.randn(len(dates)).cumsum() + 4200,
-        'NASDAQ': np.random.randn(len(dates)).cumsum() + 14500,
-        'DOW': np.random.randn(len(dates)).cumsum() + 33800
-    })
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=sample_data['Date'],
-        y=sample_data['S&P 500'],
-        mode='lines',
-        name='S&P 500',
-        line=dict(color='blue', width=2)
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=sample_data['Date'],
-        y=sample_data['NASDAQ'],
-        mode='lines',
-        name='NASDAQ',
-        line=dict(color='red', width=2)
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=sample_data['Date'],
-        y=sample_data['DOW'],
-        mode='lines',
-        name='DOW',
-        line=dict(color='green', width=2)
-    ))
-
-    fig.update_layout(
-        title="Market Indices Performance (Sample Data)",
-        xaxis_title="Date",
-        yaxis_title="Index Value",
-        hovermode='x unified',
-        showlegend=True
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Interactive stock selector
-    st.subheader("🔍 Stock Analysis")
-
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         selected_stock = st.selectbox(
-            "Select a stock to analyze:",
-            options=["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA"],
+            "Select a stock:",
+            options=["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX", "JPM", "JNJ"],
             index=0
         )
 
     with col2:
         time_period = st.selectbox(
-            "Select time period:",
-            options=["1D", "5D", "1M", "3M", "6M", "1Y"],
-            index=3
+            "Time period:",
+            options=["1mo", "3mo", "6mo", "1y", "2y"],
+            index=2
         )
 
-    if st.button("🚀 Analyze Stock"):
-        st.success(f"Analysis for {selected_stock} over {time_period} period will be implemented in the next steps!")
-        st.info("This will connect to real financial APIs and display detailed stock information.")
+    with col3:
+        if st.button("🚀 Analyze Stock"):
+            analyze_individual_stock(selected_stock, time_period)
+
+
+def analyze_individual_stock(symbol, period):
+    """Analyze individual stock with real data"""
+
+    # Get data loader instance
+    data_loader = initialize_data_loader()
+
+    with st.spinner(f"Loading data for {symbol}..."):
+        # Get stock data and company info
+        stock_data = data_loader.get_stock_data(symbol, period)
+        company_info = data_loader.get_company_info(symbol)
+
+        if stock_data is not None and company_info is not None:
+            # Company information section
+            st.markdown(f"### {company_info['name']} ({symbol})")
+
+            # Basic company info
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown(f"**Sector:** {company_info['sector']}")
+                st.markdown(f"**Industry:** {company_info['industry']}")
+                st.markdown(f"**Country:** {company_info['country']}")
+                st.markdown(f"**Market Cap:** {data_loader.format_currency(company_info['market_cap'])}")
+                st.markdown(f"**Enterprise Value:** {data_loader.format_currency(company_info['enterprise_value'])}")
+
+            with col2:
+                st.markdown(f"**P/E Ratio:** {company_info['pe_ratio']:.2f}" if company_info[
+                    'pe_ratio'] else "**P/E Ratio:** N/A")
+                st.markdown(f"**Forward P/E:** {company_info['forward_pe']:.2f}" if company_info[
+                    'forward_pe'] else "**Forward P/E:** N/A")
+                st.markdown(f"**PEG Ratio:** {company_info['peg_ratio']:.2f}" if company_info[
+                    'peg_ratio'] else "**PEG Ratio:** N/A")
+                st.markdown(f"**Price-to-Book:** {company_info['price_to_book']:.2f}" if company_info[
+                    'price_to_book'] else "**Price-to-Book:** N/A")
+                st.markdown(f"**Beta:** {company_info['beta']:.2f}" if company_info['beta'] else "**Beta:** N/A")
+
+            # Financial metrics
+            st.subheader("💰 Financial Metrics")
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Revenue", data_loader.format_currency(company_info['revenue']))
+                st.metric("EPS", f"${company_info['eps']:.2f}" if company_info['eps'] else "N/A")
+
+            with col2:
+                st.metric("Profit Margin", data_loader.format_percentage(company_info['profit_margin']))
+                st.metric("Operating Margin", data_loader.format_percentage(company_info['operating_margin']))
+
+            with col3:
+                st.metric("ROE", data_loader.format_percentage(company_info['return_on_equity']))
+                st.metric("ROA", data_loader.format_percentage(company_info['return_on_assets']))
+
+            with col4:
+                st.metric("Dividend Yield", data_loader.format_percentage(company_info['dividend_yield']))
+                st.metric("Payout Ratio", data_loader.format_percentage(company_info['payout_ratio']))
+
+            # Price chart with volume
+            st.subheader("📊 Stock Price & Volume")
+
+            from plotly.subplots import make_subplots
+
+            fig = make_subplots(
+                rows=2, cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.1,
+                subplot_titles=('Stock Price', 'Volume'),
+                row_heights=[0.7, 0.3]
+            )
+
+            # Candlestick chart
+            fig.add_trace(
+                go.Candlestick(
+                    x=stock_data.index,
+                    open=stock_data['Open'],
+                    high=stock_data['High'],
+                    low=stock_data['Low'],
+                    close=stock_data['Close'],
+                    name='Price'
+                ),
+                row=1, col=1
+            )
+
+            # Volume chart
+            fig.add_trace(
+                go.Bar(
+                    x=stock_data.index,
+                    y=stock_data['Volume'],
+                    name='Volume',
+                    marker_color='rgba(158,202,225,0.8)'
+                ),
+                row=2, col=1
+            )
+
+            fig.update_layout(
+                title=f"{symbol} Stock Analysis - {period.upper()}",
+                xaxis_rangeslider_visible=False,
+                height=600
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Performance metrics
+            st.subheader("📈 Performance Metrics")
+
+            returns = stock_data['Close'].pct_change().dropna()
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                total_return = ((stock_data['Close'].iloc[-1] / stock_data['Close'].iloc[0]) - 1) * 100
+                st.metric("Total Return", f"{total_return:.2f}%")
+
+            with col2:
+                volatility = returns.std() * np.sqrt(252) * 100
+                st.metric("Annualized Volatility", f"{volatility:.2f}%")
+
+            with col3:
+                sharpe_ratio = (returns.mean() * 252) / (returns.std() * np.sqrt(252))
+                st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
+
+            with col4:
+                max_drawdown = (stock_data['Close'] / stock_data['Close'].cummax() - 1).min() * 100
+                st.metric("Max Drawdown", f"{max_drawdown:.2f}%")
+
+            # Data quality report
+            with st.expander("📋 Data Quality Report"):
+                quality_report = data_loader.get_data_quality_report(stock_data)
+                st.json(quality_report)
+
+            # Recent news (placeholder)
+            st.subheader("📰 Recent News")
+            news_items = data_loader.get_stock_news(symbol, 5)
+
+            for news in news_items:
+                with st.expander(f"📰 {news['title']}"):
+                    st.write(f"**Source:** {news['source']}")
+                    st.write(f"**Published:** {news['published_at'].strftime('%Y-%m-%d %H:%M')}")
+                    st.write(f"**Summary:** {news['summary']}")
+                    st.write(f"**URL:** {news['url']}")
+
+        else:
+            st.error(f"Could not load data for {symbol}. Please try again or select a different stock.")
 
 
 def show_technical_analysis():
     """Technical Analysis page"""
     st.header("📊 Technical Analysis")
-
-    st.markdown(
-        '<div class="info-box">Technical Analysis tools will help you analyze stock price movements using various indicators like RSI, MACD, and Bollinger Bands.</div>',
-        unsafe_allow_html=True)
-
-    # Placeholder content
-    st.subheader("🔧 Available Technical Indicators")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.write("**Trend Indicators:**")
-        st.write("- Moving Averages (SMA, EMA)")
-        st.write("- MACD")
-        st.write("- Bollinger Bands")
-
-    with col2:
-        st.write("**Momentum Indicators:**")
-        st.write("- RSI (Relative Strength Index)")
-        st.write("- Stochastic Oscillator")
-        st.write("- Williams %R")
-
-    st.info("📈 Technical analysis implementation coming in Step 3!")
+    st.markdown('<div class="info-box">Technical Analysis with real data implementation coming in Step 3!</div>',
+                unsafe_allow_html=True)
 
 
 def show_ml_predictions():
     """Machine Learning Predictions page"""
     st.header("🤖 Machine Learning Predictions")
-
-    st.markdown(
-        '<div class="info-box">Use advanced machine learning models to predict stock price movements and generate trading signals.</div>',
-        unsafe_allow_html=True)
-
-    # Model selection placeholder
-    st.subheader("🧠 Available ML Models")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.write("**Random Forest Classifier**")
-        st.write("- Feature-based prediction")
-        st.write("- Technical indicator inputs")
-        st.write("- High interpretability")
-
-    with col2:
-        st.write("**LSTM Neural Network**")
-        st.write("- Time series prediction")
-        st.write("- Deep learning approach")
-        st.write("- Pattern recognition")
-
-    st.info("🤖 ML model implementation coming in Step 4!")
+    st.markdown('<div class="info-box">ML model implementation coming in Step 4!</div>', unsafe_allow_html=True)
 
 
 def show_portfolio_optimization():
     """Portfolio Optimization page"""
     st.header("💼 Portfolio Optimization")
-
-    st.markdown(
-        '<div class="info-box">Create optimized portfolios using Modern Portfolio Theory, efficient frontier analysis, and risk management techniques.</div>',
-        unsafe_allow_html=True)
-
-    # Optimization methods placeholder
-    st.subheader("⚖️ Optimization Methods")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.write("**Efficient Frontier**")
-        st.write("- Risk-return optimization")
-        st.write("- Sharpe ratio maximization")
-        st.write("- Diversification analysis")
-
-    with col2:
-        st.write("**Monte Carlo Simulation**")
-        st.write("- Scenario analysis")
-        st.write("- Risk assessment")
-        st.write("- Portfolio backtesting")
-
-    st.info("💼 Portfolio optimization implementation coming in Step 5!")
+    st.markdown('<div class="info-box">Portfolio optimization implementation coming in Step 5!</div>',
+                unsafe_allow_html=True)
 
 
 def show_sentiment_analysis():
     """Sentiment Analysis page"""
     st.header("😊 Sentiment Analysis")
-
-    st.markdown(
-        '<div class="info-box">Analyze market sentiment from news articles, social media, and financial reports to gauge market mood and potential price movements.</div>',
-        unsafe_allow_html=True)
-
-    # Sentiment sources placeholder
-    st.subheader("📰 Sentiment Sources")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.write("**News Analysis**")
-        st.write("- Financial news sentiment")
-        st.write("- Real-time processing")
-        st.write("- Source credibility weighting")
-
-    with col2:
-        st.write("**Social Media**")
-        st.write("- Twitter sentiment tracking")
-        st.write("- Reddit discussions")
-        st.write("- Influencer impact analysis")
-
-    st.info("😊 Sentiment analysis implementation coming in Step 6!")
+    st.markdown('<div class="info-box">Sentiment analysis implementation coming in Step 6!</div>',
+                unsafe_allow_html=True)
 
 
 def show_settings():
     """Settings page"""
     st.header("⚙️ Settings")
+    st.markdown('<div class="info-box">Settings and configuration options.</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="info-box">Configure your dashboard preferences, API settings, and data sources.</div>',
-                unsafe_allow_html=True)
+    # Get data loader instance
+    data_loader = initialize_data_loader()
 
-    # Settings sections
-    st.subheader("🔧 Configuration Options")
+    # Cache management
+    st.subheader("💾 Cache Management")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.write("**Data Sources**")
-        st.write("- API key management")
-        st.write("- Data refresh intervals")
-        st.write("- Cache settings")
+        st.write("**Cache Status:**")
+        st.write("- Stock data: 5 minutes")
+        st.write("- Market indices: 10 minutes")
+        st.write("- Company info: 1 hour")
+        st.write("- News data: 30 minutes")
 
     with col2:
-        st.write("**Display Options**")
-        st.write("- Theme customization")
-        st.write("- Chart preferences")
-        st.write("- Notification settings")
+        if st.button("🗑️ Clear All Cache"):
+            st.cache_data.clear()
+            st.success("Cache cleared successfully!")
+            st.rerun()
 
-    # Sample settings
-    st.subheader("📊 Dashboard Preferences")
+    # API settings
+    st.subheader("🔧 API Settings")
+
+    st.write("**Data Sources:**")
+    st.write("- Stock data: Yahoo Finance (yfinance)")
+    st.write("- Market indices: Yahoo Finance")
+    st.write("- Company fundamentals: Yahoo Finance")
+    st.write("- News: Placeholder (integrate with NewsAPI)")
+
+    # Data refresh settings
+    st.subheader("🔄 Data Refresh Settings")
 
     auto_refresh = st.checkbox("Auto-refresh data", value=True)
-    refresh_interval = st.slider("Refresh interval (minutes)", 1, 60, 5)
 
-    if st.button("💾 Save Settings"):
-        st.success("Settings saved successfully!")
-        st.balloons()
+    if auto_refresh:
+        refresh_interval = st.slider("Refresh interval (minutes)", 1, 60, 5)
+        st.info(f"Data will refresh every {refresh_interval} minutes")
+
+    # Performance settings
+    st.subheader("⚡ Performance Settings")
+
+    max_retries = st.slider("Max API retries", 1, 5, 3)
+    retry_delay = st.slider("Retry delay (seconds)", 1, 10, 2)
+
+    st.info(f"API will retry {max_retries} times with {retry_delay}s delay")
 
 
-# Run the application
 if __name__ == "__main__":
     main()
