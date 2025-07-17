@@ -66,3 +66,48 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+def main():
+
+    # main header
+    st.markdown('<h1 class="main-header">📈 MarketMind AI</h1>', unsafe_allow_html=True)
+
+    # sidebar
+    st.sidebar.title("🚀 Navigation")
+    st.sidebar.markdown("---")
+
+    # page selection
+    page = st.sidebar.selectbox(
+        "Choose a page",
+        [
+            "🌍 Market Overview",
+            "📊 Technical Analysis",
+            "🤖 ML Predictions",
+            "💼 Portfolio Optimization",
+            "😊 Sentiment Analysis",
+            "⚙️ Settings"
+        ]
+    )
+
+    # add info in the sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📊 Quick Stats")
+    st.sidebar.info("Dashboard loaded successfully!")
+
+    # Route to appropriate page based on selection
+    if page == "🌍 Market Overview":
+        show_market_overview()
+    elif page == "📊 Technical Analysis":
+        show_technical_analysis()
+    elif page == "🤖 ML Predictions":
+        show_ml_predictions()
+    elif page == "💼 Portfolio Optimization":
+        show_portfolio_optimization()
+    elif page == "😊 Sentiment Analysis":
+        show_sentiment_analysis()
+    elif page == "⚙️ Settings":
+        show_settings()
+
+    # footer
+    st.markdown("---")
+    st.markdown("*Built with ❤️ using Streamlit - MarketMind AI*")
