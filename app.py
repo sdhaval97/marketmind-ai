@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
 
+# Importing data loader
+from components.data_loader import DataLoader
+
 # Page configuration - This must be the first Streamlit command
 st.set_page_config(
     page_title="Financial Markets Intelligence",
